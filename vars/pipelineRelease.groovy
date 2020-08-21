@@ -34,7 +34,7 @@ def call(Map args = [:]) {
                     container('maven'){
                         script {
                             env.CURRENT_RELEASE_VERSION=sh(label:'Retrieve version',returnStdout:true,script:'mvn help:evaluate -Dexpression=project.version -q -DforceStdout').trim()
-                            env.NEW_RELEASE_VERSION=incrementVersion(increment:params.INCREMENT,relver:env.CURRENT_RELEASE_VERSION)
+                            env.NEW_RELEASE_VERSION=moduleIncrementVersion(increment:params.INCREMENT,relver:env.CURRENT_RELEASE_VERSION)
                             currentBuild.displayName = "${env.NEW_RELEASE_VERSION}-${env.BUILD_NUMBER}"
                         }
                     }
@@ -53,7 +53,7 @@ def call(Map args = [:]) {
                 steps {
                     container('maven') {
                         script {
-                            createJiraRelease(projectKey:'TJI',releaseVersion:"${env.NEW_RELEASE_VERSION}")
+                            moduleJiraRelease(projectKey:'TJI',releaseVersion:"${env.NEW_RELEASE_VERSION}")
                         }
                         sh 'git config --global user.email "jenkins_test@diginex.com"'
                         sh 'git config --global user.name "jenkins_test"'

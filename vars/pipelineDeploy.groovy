@@ -1,75 +1,38 @@
 def call(Map args = [:]) {
-    pipeline {
-        agent {
-            kubernetes {
-                containerTemplate {
-                    name 'maven'
-                    image 'maven:3.6.3-openjdk-11'
-                    ttyEnabled true
-                    command 'cat'
-                }
-                defaultContainer 'maven'
-            }
-        }
-        parameters {
-            choice(name: 'environment', choices: ['dev','qa','test','uat','production'], description: 'Environment to deploy to')
-            gitParameter(name: 'BRANCH_TAG', 
-                     type: 'PT_BRANCH_TAG',
-                     defaultValue: 'master')
-            extendedChoice(bindings: '', description: '', groovyClasspath: '', groovyScript: '''import com.cloudbees.plugins.credentials.CredentialsProvider;
-            import com.cloudbees.plugins.credentials.common.StandardUsernamePasswordCredentials;
-            import jenkins.model.Jenkins;
-            import groovy.json.JsonSlurper;
-
-            def creds = CredentialsProvider.lookupCredentials(
-                StandardUsernamePasswordCredentials.class, 
-                Jenkins.instance
-            );
-            def c = creds.findResult { it.username == \'zqchindiginex\' ? it : null }
-            def pass = c.password;
-            def curlOutput = ["curl","--data",\'{"query":"{repository(owner:\\\\"zqchindiginex\\\\",name:\\\\"matching-engine\\\\"){packages(first:1){nodes{versions(first:5){nodes{version}}}}}}"}\',"--header","Authorization: Bearer "+pass,"--header", "Content-Type: application/json","--location","--request","POST", "https://api.github.com/graphql"].execute().text
-            def parsedJson = new groovy.json.JsonSlurper().parseText(curlOutput)
-            return resultList = parsedJson.data.repository.packages.nodes.versions.nodes.version[0]''', multiSelectDelimiter: ',', name: 'releaseVersion', quoteValue: false, saveJSONParameterToFile: false, type: 'PT_SINGLE_SELECT', visibleItemCount: 5)
-        }
-        stages {
-            stage('checkout') {
-                steps {
-                    sh "echo 'environment chosen: ${params.environment}'"
-                    sh "echo 'release chosen: ${params.releaseVersion}'"
+podTemplate(yaml: """
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: maven
+    image: maven:3.3.9-jdk-8-alpine
+    command: ['cat']
+    tty: true
+  - name: awscli
+    image: amazon/aws-cli:2.0.41
+    command: ['cat']
+    tty: true
+"""
+  ){
+        properties([[$class: 'JiraProjectProperty', siteName: 'https://diginex.atlassian.net/'], parameters([[$class: 'JiraVersionParameterDefinition', description: 'List of Jira Releases in project TJI', jiraProjectKey: 'TJI', jiraReleasePattern: '', jiraShowArchived: 'false', jiraShowReleased: 'false', name: 'jiraRelease'], choice(choices: ['dev', 'qa', 'uat', 'test', 'production'], description: 'Environment to deploy to', name: 'environment')])])
+        node(POD_LABEL) {
+            stage("deploying to selected environment") {
+                sh "echo 'release chosen: ${params.jiraRelease}'"
+                currentBuild.description = "${params.environment}"
+                container('awscli') {
+                    moduleDeployFromS3(releaseVersion:params.jiraRelease)
                 }
             }
-            stage('Deployment') {
-                steps{
-                    container('maven') {
-                        echo 'deploying to ${params.environment}'
-                        script {
-                            currentBuild.displayName = 'Test setting display name '+env.BUILD_NUMBER
-                            currentBuild.description = 'Test setting display description'
-                        }
-                    }
-                }
+            stage('test 1') {
+                echo 'doing something'
             }
-            stage('tests 1') {
-                steps{
-                    container('maven') {
-                        echo 'performing tests'
-                    }
-                }
+            stage('test 2') {
+                echo 'doing something'
             }
-            stage('tests 2') {
-                steps{
-                    container('maven') {
-                        echo 'performing tests'
-                    }
-                }
-            }
-            stage('tests 3') {
-                steps{
-                    container('maven') {
-                        echo 'performing tests'
-                    }
-                }
+            stage('test 3') {
+                echo 'doing something'
             }
         }
     }
 }
+
